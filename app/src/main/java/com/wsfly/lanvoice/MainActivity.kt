@@ -1,6 +1,5 @@
 package com.wsfly.lanvoice
 
-
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.widget.*
@@ -8,6 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
+import java.net.MulticastSocket
 
 
 class MainActivity : AppCompatActivity() {
@@ -16,121 +16,69 @@ class MainActivity : AppCompatActivity() {
     private val groupAddress = "239.1.1.1"
     private val port = 5000
 
-    private var socket: DatagramSocket? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
-
         super.onCreate(savedInstanceState)
-
-
-        Thread.setDefaultUncaughtExceptionHandler { _, e ->
-
-            runOnUiThread {
-
-                Toast.makeText(
-                    this,
-                    e.toString(),
-                    Toast.LENGTH_LONG
-                ).show()
-
-            }
-
-        }
-
 
 
         val layout = LinearLayout(this)
 
-        layout.orientation =
-            LinearLayout.VERTICAL
-
-        layout.setPadding(
-            30,
-            30,
-            30,
-            30
-        )
-
+        layout.orientation = LinearLayout.VERTICAL
+        layout.setPadding(30,30,30,30)
 
 
         val title = TextView(this)
-
-        title.text =
-            "LanVoice\nUDP Multicast"
-
-        title.textSize =
-            24f
+        title.text = "LanVoice\nUDP Multicast Test"
+        title.textSize = 24f
 
 
-
-        val send =
-            Button(this)
-
-        send.text =
-            "发送组播"
+        val send = Button(this)
+        send.text = "发送组播"
 
 
-
-        val receive =
-            Button(this)
-
-        receive.text =
-            "接收组播"
+        val receive = Button(this)
+        receive.text = "接收组播"
 
 
-
-        val log =
-            TextView(this)
-
-        log.text =
-            "状态:停止"
+        val log = TextView(this)
+        log.text = "状态:停止"
 
 
 
         layout.addView(title)
-
         layout.addView(send)
-
         layout.addView(receive)
-
         layout.addView(log)
-
 
 
         setContentView(layout)
 
 
 
-        // 防止组播锁导致闪退
-
+        // 获取WiFi组播权限
         try {
 
             val wifi =
                 applicationContext
                     .getSystemService(WIFI_SERVICE)
-                        as WifiManager
+                    as WifiManager
 
 
-            val lock =
-                wifi.createMulticastLock(
-                    "LanVoice"
-                )
+            multicastLock =
+                wifi.createMulticastLock("LanVoiceLock")
 
 
-            lock.setReferenceCounted(true)
+            multicastLock?.setReferenceCounted(true)
 
-            lock.acquire()
+            multicastLock?.acquire()
 
+        }catch(e:Exception){
 
-        } catch(e:Exception){
-
-            log.text =
-                "组播锁失败:\n$e"
+            log.text="MulticastLock错误:\n${e.message}"
 
         }
-
-
 
 
 
@@ -145,25 +93,20 @@ class MainActivity : AppCompatActivity() {
                 try {
 
 
-                    val sendSocket =
+                    val socket =
                         DatagramSocket()
 
 
                     val address =
-                        InetAddress
-                            .getByName(
-                                groupAddress
-                            )
+                        InetAddress.getByName(groupAddress)
 
 
                     val msg =
                         "HELLO LANVOICE"
 
 
-
                     val data =
                         msg.toByteArray()
-
 
 
                     val packet =
@@ -175,8 +118,9 @@ class MainActivity : AppCompatActivity() {
                         )
 
 
+                    socket.send(packet)
 
-                    sendSocket.send(packet)
+                    socket.close()
 
 
 
@@ -188,18 +132,13 @@ class MainActivity : AppCompatActivity() {
                     }
 
 
-
-                    sendSocket.close()
-
-
-
                 }catch(e:Exception){
 
 
                     runOnUiThread {
 
                         log.text =
-                            "发送错误:\n$e"
+                            "发送错误:\n${e.message}"
 
                     }
 
@@ -209,9 +148,7 @@ class MainActivity : AppCompatActivity() {
 
             }.start()
 
-
         }
-
 
 
 
@@ -227,32 +164,26 @@ class MainActivity : AppCompatActivity() {
                 try {
 
 
-
-                    socket =
-                        DatagramSocket(port)
+                    val socket =
+                        MulticastSocket(port)
 
 
 
                     val group =
-                        InetAddress
-                            .getByName(
-                                groupAddress
-                            )
+                        InetAddress.getByName(groupAddress)
 
 
 
-                    socket!!.joinGroup(group)
+                    socket.joinGroup(group)
 
 
 
                     runOnUiThread {
 
                         log.text =
-                            "监听中..."
+                            "监听组播中..."
 
                     }
-
-
 
 
 
@@ -264,7 +195,6 @@ class MainActivity : AppCompatActivity() {
                     while(true){
 
 
-
                         val packet =
                             DatagramPacket(
                                 buffer,
@@ -272,8 +202,7 @@ class MainActivity : AppCompatActivity() {
                             )
 
 
-
-                        socket!!.receive(packet)
+                        socket.receive(packet)
 
 
 
@@ -288,10 +217,8 @@ class MainActivity : AppCompatActivity() {
 
                         runOnUiThread {
 
-
                             log.text =
                                 "收到:\n$msg"
-
 
                         }
 
@@ -299,22 +226,18 @@ class MainActivity : AppCompatActivity() {
                     }
 
 
-
                 }catch(e:Exception){
 
 
                     runOnUiThread {
 
-
                         log.text =
-                            "接收错误:\n$e"
-
+                            "接收错误:\n${e.message}"
 
                     }
 
 
                 }
-
 
 
             }.start()
@@ -323,18 +246,18 @@ class MainActivity : AppCompatActivity() {
         }
 
 
-
     }
 
 
 
-    override fun onDestroy(){
+    override fun onDestroy() {
 
         super.onDestroy()
 
-        try{
 
-            socket?.close()
+        try {
+
+            multicastLock?.release()
 
         }catch(_:Exception){}
 
