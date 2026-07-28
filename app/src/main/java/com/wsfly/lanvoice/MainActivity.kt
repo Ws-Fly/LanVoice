@@ -1,12 +1,12 @@
 package com.wsfly.lanvoice
 
+
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.net.DatagramPacket
 import java.net.DatagramSocket
-import java.net.MulticastSocket
 import java.net.InetAddress
 
 
@@ -16,74 +16,154 @@ class MainActivity : AppCompatActivity() {
     private val groupAddress = "239.1.1.1"
     private val port = 5000
 
+    private var socket: DatagramSocket? = null
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
+
         super.onCreate(savedInstanceState)
 
 
+        Thread.setDefaultUncaughtExceptionHandler { _, e ->
+
+            runOnUiThread {
+
+                Toast.makeText(
+                    this,
+                    e.toString(),
+                    Toast.LENGTH_LONG
+                ).show()
+
+            }
+
+        }
+
+
+
         val layout = LinearLayout(this)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.setPadding(30,30,30,30)
+
+        layout.orientation =
+            LinearLayout.VERTICAL
+
+        layout.setPadding(
+            30,
+            30,
+            30,
+            30
+        )
+
 
 
         val title = TextView(this)
-        title.text = "LanVoice\nUDP Multicast Test"
-        title.textSize = 24f
+
+        title.text =
+            "LanVoice\nUDP Multicast"
+
+        title.textSize =
+            24f
 
 
-        val send = Button(this)
-        send.text = "发送组播"
+
+        val send =
+            Button(this)
+
+        send.text =
+            "发送组播"
 
 
-        val receive = Button(this)
-        receive.text = "接收组播"
+
+        val receive =
+            Button(this)
+
+        receive.text =
+            "接收组播"
 
 
-        val log = TextView(this)
-        log.text = "状态:停止"
+
+        val log =
+            TextView(this)
+
+        log.text =
+            "状态:停止"
+
 
 
         layout.addView(title)
+
         layout.addView(send)
+
         layout.addView(receive)
+
         layout.addView(log)
+
 
 
         setContentView(layout)
 
 
 
-        // 保持安卓允许组播
-        val wifi =
-            applicationContext.getSystemService(WIFI_SERVICE)
-                    as WifiManager
+        // 防止组播锁导致闪退
 
-        val lock =
-            wifi.createMulticastLock("LanVoice")
+        try {
 
-        lock.setReferenceCounted(true)
-        lock.acquire()
+            val wifi =
+                applicationContext
+                    .getSystemService(WIFI_SERVICE)
+                        as WifiManager
 
 
+            val lock =
+                wifi.createMulticastLock(
+                    "LanVoice"
+                )
 
-        // 发送组播
+
+            lock.setReferenceCounted(true)
+
+            lock.acquire()
+
+
+        } catch(e:Exception){
+
+            log.text =
+                "组播锁失败:\n$e"
+
+        }
+
+
+
+
+
+        //发送
+
         send.setOnClickListener {
+
 
             Thread {
 
+
                 try {
 
-                    val socket = DatagramSocket()
+
+                    val sendSocket =
+                        DatagramSocket()
+
 
                     val address =
-                        InetAddress.getByName(groupAddress)
+                        InetAddress
+                            .getByName(
+                                groupAddress
+                            )
 
 
                     val msg =
                         "HELLO LANVOICE"
 
+
+
                     val data =
                         msg.toByteArray()
+
 
 
                     val packet =
@@ -95,35 +175,49 @@ class MainActivity : AppCompatActivity() {
                         )
 
 
-                    socket.send(packet)
+
+                    sendSocket.send(packet)
+
 
 
                     runOnUiThread {
+
                         log.text =
-                            "已发送:\n$msg"
+                            "发送成功:\n$msg"
+
                     }
 
 
-                    socket.close()
+
+                    sendSocket.close()
 
 
-                } catch(e:Exception){
+
+                }catch(e:Exception){
+
 
                     runOnUiThread {
-                        log.text=e.toString()
+
+                        log.text =
+                            "发送错误:\n$e"
+
                     }
+
 
                 }
 
 
             }.start()
 
+
         }
 
 
 
 
-        // 接收组播
+
+        //接收
+
         receive.setOnClickListener {
 
 
@@ -133,32 +227,42 @@ class MainActivity : AppCompatActivity() {
                 try {
 
 
-                    // 这里改成 MulticastSocket
-                    val socket =
-                        MulticastSocket(port)
+
+                    socket =
+                        DatagramSocket(port)
+
 
 
                     val group =
-                        InetAddress.getByName(groupAddress)
+                        InetAddress
+                            .getByName(
+                                groupAddress
+                            )
 
 
-                    socket.joinGroup(group)
+
+                    socket!!.joinGroup(group)
 
 
 
                     runOnUiThread {
+
                         log.text =
-                            "监听组播中..."
+                            "监听中..."
+
                     }
 
 
 
+
+
                     val buffer =
-                        ByteArray(1024)
+                        ByteArray(2048)
 
 
 
                     while(true){
+
 
 
                         val packet =
@@ -168,7 +272,9 @@ class MainActivity : AppCompatActivity() {
                             )
 
 
-                        socket.receive(packet)
+
+                        socket!!.receive(packet)
+
 
 
                         val msg =
@@ -179,31 +285,61 @@ class MainActivity : AppCompatActivity() {
                             )
 
 
+
                         runOnUiThread {
+
 
                             log.text =
                                 "收到:\n$msg"
 
+
                         }
 
+
                     }
+
 
 
                 }catch(e:Exception){
 
+
                     runOnUiThread {
 
-                        log.text=e.toString()
+
+                        log.text =
+                            "接收错误:\n$e"
+
 
                     }
+
 
                 }
 
 
+
             }.start()
+
 
         }
 
+
+
     }
+
+
+
+    override fun onDestroy(){
+
+        super.onDestroy()
+
+        try{
+
+            socket?.close()
+
+        }catch(_:Exception){}
+
+
+    }
+
 
 }
