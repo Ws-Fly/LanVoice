@@ -6,6 +6,7 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.MulticastSocket
 import java.net.InetAddress
 
 
@@ -14,9 +15,6 @@ class MainActivity : AppCompatActivity() {
 
     private val groupAddress = "239.1.1.1"
     private val port = 5000
-
-
-    private var running = false
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,6 +66,7 @@ class MainActivity : AppCompatActivity() {
 
 
 
+        // 发送组播
         send.setOnClickListener {
 
             Thread {
@@ -119,12 +118,12 @@ class MainActivity : AppCompatActivity() {
 
             }.start()
 
-
         }
 
 
 
 
+        // 接收组播
         receive.setOnClickListener {
 
 
@@ -134,8 +133,9 @@ class MainActivity : AppCompatActivity() {
                 try {
 
 
+                    // 这里改成 MulticastSocket
                     val socket =
-                        DatagramSocket(port)
+                        MulticastSocket(port)
 
 
                     val group =
